@@ -3,6 +3,9 @@ import importlib
 import pkgutil
 from mcp_server.mcp_instance import mcp
 import mcp_server.tools as tools_package
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def register_all_tools():
     """Автоматически импортирует все модули из папки tools"""

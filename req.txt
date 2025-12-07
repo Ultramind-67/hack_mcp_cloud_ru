@@ -1,0 +1,9 @@
+fastmcp
+pydantic
+httpx
+python-dotenv
+opentelemetry-api
+opentelemetry-sdk
+prometheus_client
+openai
+llm_client
