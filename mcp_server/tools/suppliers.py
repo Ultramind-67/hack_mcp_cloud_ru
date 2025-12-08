@@ -65,7 +65,7 @@ async def find_suppliers(query: str, pages: int = 1) -> str:
 @mcp.tool(
     description="Генерирует профиль поставщика с разделами для LLM-контекста. Args: raw_data - JSON с url и контентом сайта"
 )
-async def generate_supplier_profile(raw_str) -> str:
+async def generate_supplier_profile(raw_data: str) -> str:
     """Создаёт Markdown-профиль со специальными разделами для сохранения контекста LLM"""
     try:
         data = json.loads(raw_data)
