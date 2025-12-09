@@ -9,18 +9,18 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-#не уверен что нужно 
-from mcp.fastmcp import FastMCP
-from server.tools.suppliers import (
-    find_suppliers,
-    generate_supplier_profile,
-    save_supplier_profile,
-    add_llm_interaction,
-    create_supplier_profiles,
-    generate_supplier_email
-)
-from server.tools.web_search import google_search
-from server.tools.jina_reader import read_url
+# #не уверен что нужно
+# from mcp.fastmcp import FastMCP
+# from server.tools.suppliers import (
+#     find_suppliers,
+#     generate_supplier_profile,
+#     save_supplier_profile,
+#     add_llm_interaction,
+#     create_supplier_profiles,
+#     generate_supplier_email
+# )
+# from server.tools.web_search import google_search
+# from server.tools.jina_reader import read_url
 async def run_agent():
     mcp_url = "http://127.0.0.1:8000/sse"
     llm_client = get_client()
