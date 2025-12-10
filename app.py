@@ -13,6 +13,41 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# --- CUSTOM CSS ---
+st.markdown("""
+<style>
+    /* Основной фон и шрифт */
+    .stApp {
+        background-color: #f8f9fa;
+    }
+
+    /* Блоки чата */
+    .stChatMessage {
+        background-color: white;
+        border: 1px solid #e0e0e0;
+        border-radius: 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        padding: 10px;
+    }
+
+    /* Сайдбар */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e0e0e0;
+    }
+
+    /* Заголовки */
+    h1, h2, h3 {
+        color: #2c3e50;
+    }
+
+    /* Метрики */
+    [data-testid="stMetricValue"] {
+        font-size: 1.5rem;
+        color: #2e86de;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # --- INIT STATE ---
 if "messages" not in st.session_state:
@@ -43,7 +78,6 @@ def load_file(filepath):
 
 # --- SIDEBAR (DASHBOARD) ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/4712/4712109.png", width=60)
     st.title("Панель управления")
 
     # Метрики

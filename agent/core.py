@@ -17,18 +17,61 @@ except ImportError:
 load_dotenv()
 
 SYSTEM_PROMPT = (
-    "Ты — профессиональный менеджер по закупкам. Твоя цель: найти поставщиков, проанализировать их и составить отчет.\n"
-    "Твой инструмент — папка `suppliers` и `exports`.\n\n"
-    "АЛГОРИТМ:\n"
-    "1. Поиск: Используй `create_supplier_profiles` (он ищет, читает сайты и сохраняет .md).\n"
-    "2. Анализ: Если просят таблицу, сначала собери данные, потом сделай `create_suppliers_top_csv`.\n"
-    "3. Ответ: Всегда давай краткую выжимку и говори, какие файлы были созданы.\n\n"
-    "ВАЖНО: Если ты создал CSV, обязательно скажи об этом пользователю."
+    "Ты — дотошный аналитик данных. Твоя задача — собрать ПОЛНУЮ и ДОСТОВЕРНУЮ информацию.\n"
+    "Ты работаешь в цикле: Мысль -> Действие -> Наблюдение.\n\n"
+    "У тебя есть ФАЙЛОВАЯ СИСТЕМА (папка suppliers), где ты обязан вести досье на компании.\n\n"
+
+    "=== ТВОИ РЕЖИМЫ РАБОТЫ ===\n\n"
+    
+    "РЕЖИМ 1: ПОИСК ПОСТАВЩИКОВ\n"
+    "Если просят найти поставщиков, производителей или компании:\n"
+    "1. НЕ используй обычный `google_search`.\n"
+    "2. ИСПОЛЬЗУЙ `create_supplier_profiles` (query=...). Это создаст файлы .md с досье.\n"
+    "3. В ответе пользователю напиши: 'Созданы профили для компаний: [список]'.\n\n"
+    
+    "РЕЖИМ 2: ПЕРЕПИСКА И КОНТЕКСТ\n"
+    "Если ты пишешь письмо поставщику или анализируешь его ответ:\n"
+    "1. Сначала найди его файл (через поиск или контекст).\n"
+    "2. ИСПОЛЬЗУЙ `add_llm_interaction` для сохранения сути переписки в файл.\n"
+    "3. Никогда не полагайся только на память диалога — всё важное пиши в файл!\n\n"
+    
+    "РЕЖИМ 3: ОБЩИЙ АНАЛИЗ\n"
+    "Для обычных вопросов используй связку `google_search` -> `read_url` -> Ответ.\n\n"
+    
+    "ГЛАВНОЕ ПРАВИЛО: Если речь о конкретной компании-поставщике, результат должен лежать в .md"
+
+    "ПРАВИЛА ИССЛЕДОВАНИЯ:\n"
+    "1. ОЦЕНКА ВЫДАЧИ: После поиска (`google_search`) всегда оценивай результаты. "
+    "Если они мусорные (SEO-статьи, форумы, реклама) — НЕ ЧИТАЙ ИХ. "
+    "Вместо этого: либо иди на следующую страницу (`start=11`), либо ПЕРЕФОРМУЛИРУЙ запрос.\n"
+
+    "2. СБОР ДАННЫХ: Твоя цель — найти первоисточники. "
+    "Если нужны компании — ищи их официальные сайты. "
+    "Если нужны цены — ищи прайс-листы.\n"
+
+    "3. ЧТЕНИЕ: Используй `read_url` для глубокого анализа. Заголовков недостаточно!\n"
+
+    "4. САМОКРИТИКА: Перед тем как выдать финальный ответ, спроси себя: "
+    "'Достаточно ли у меня фактов для таблицы?'. Если нет — продолжай искать.\n\n"
+
+    "ПРИМЕР ПЛОХОГО ПОВЕДЕНИЯ:\n"
+    "- Нашел 1 ссылку, придумал остальное -> ПЛОХО.\n"
+    "- Поискал 'разработка', нашел Reddit -> ПЛОХО.\n\n"
+
+    "ПРИМЕР ХОРОШЕГО ПОВЕДЕНИЯ:\n"
+    "- Поискал 'рейтинг веб-студий'. Нашел 10 ссылок.\n"
+    "- Ссылки 1-3 — реклама. Ссылка 4 — рейтинг Tagline. Читаю её (`read_url`).\n"
+    "- В рейтинге нашел названия компаний. Ищу теперь конкретно их сайты.\n"
+    "- Читаю сайты, собираю цены.\n"
+    "- Данные собраны. Формирую таблицу.\n"
+    "- Экспортирую таблицу в CSV (`create_suppliers_top_csv`)."
+    "- Сохраняю данные по поставщикам в md формате (generate_supplier_profile)."
 )
 
 
 class AgentClient:
     def __init__(self):
+        # История хранится здесь, поэтому контекст диалога не теряется при переподключении
         self.history = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.llm = get_client()
 
@@ -38,18 +81,21 @@ class AgentClient:
 
     async def process_message(self, user_message, status_callback, mcp_url="http://127.0.0.1:8000/sse"):
         """
-        Полный цикл ReAct с поддержкой Streaming.
+        Полный цикл: Подключение -> Мысль -> Действие -> Ответ -> Отключение.
+        Это гарантирует отсутствие ошибок генераторов.
         """
         self.history.append({"role": "user", "content": user_message})
         final_answer = ""
 
         status_callback("🔌 Подключаюсь к инструментам...")
 
+        # ОТКРЫВАЕМ СОЕДИНЕНИЕ ТОЛЬКО НА ВРЕМЯ ОБРАБОТКИ ЗАПРОСА
         try:
             async with sse_client(url=mcp_url) as streams:
                 async with ClientSession(streams[0], streams[1]) as session:
                     await session.initialize()
 
+                    # Загружаем инструменты
                     tools_list = await session.list_tools()
                     openai_tools = [{
                         "type": "function",
@@ -61,100 +107,34 @@ class AgentClient:
                     } for t in tools_list.tools]
 
                     # ReAct Loop (до 15 шагов)
-                    for step in range(15):
+                    for step in range(30):
                         status_callback(f"🧠 Думаю (шаг {step + 1})...")
 
-                        # --- ИЗМЕНЕНИЕ: STREAMING ЗАПРОС ---
-                        stream = await self.llm.chat.completions.create(
-                            model="Qwen/Qwen3-235B-A22B-Instruct-2507",
+                        # 1. Запрос к LLM
+                        response = await self.llm.chat.completions.create(
+                            model="Qwen/Qwen3-235B-A22B-Instruct-2507",  # Или GigaChat
                             messages=self.history,
                             tools=openai_tools if openai_tools else None,
-                            tool_choice="auto" if openai_tools else None,
-                            stream=True  # <--- ВКЛЮЧАЕМ ПОТОК
+                            tool_choice="auto" if openai_tools else None
                         )
 
-                        full_content = ""
-                        tool_calls_chunks = []
+                        response_msg = response.choices[0].message
+                        content = self.clean_content(response_msg.content or "")
+                        tool_calls = response_msg.tool_calls
 
-                        # Читаем поток по кусочкам
-                        async for chunk in stream:
-                            delta = chunk.choices[0].delta
-
-                            # 1. Если идет текст
-                            if delta.content:
-                                full_content += delta.content
-                                # Обновляем статус каждые 50 символов, чтобы было видно, что бот жив
-                                if len(full_content) % 50 == 0:
-                                    status_callback(f"📝 Генерирую ответ... ({len(full_content)} симв.)")
-
-                            # 2. Если идут вызовы инструментов (OpenAI формат)
-                            if delta.tool_calls:
-                                for tool_call in delta.tool_calls:
-                                    if len(tool_calls_chunks) <= tool_call.index:
-                                        tool_calls_chunks.append({"id": "", "function": {"name": "", "arguments": ""}})
-
-                                    tc = tool_calls_chunks[tool_call.index]
-                                    if tool_call.id: tc["id"] += tool_call.id
-                                    if tool_call.function.name: tc["function"]["name"] += tool_call.function.name
-                                    if tool_call.function.arguments: tc["function"][
-                                        "arguments"] += tool_call.function.arguments
-
-                        # Сборка ответа после завершения потока
-                        content = self.clean_content(full_content)
-
-                        # Преобразуем накопленные чанки тулов в объекты
-                        tool_calls = []
-                        for tc in tool_calls_chunks:
-                            tool_calls.append(type('obj', (object,), {
-                                'id': tc['id'],
-                                'function': type('func', (object,), {
-                                    'name': tc['function']['name'],
-                                    'arguments': tc['function']['arguments']
-                                })
-                            }))
-                        if not tool_calls: tool_calls = None
-
-                        # Создаем объект сообщения для истории (так как streaming не возвращает message object)
-                        response_msg = type('obj', (object,), {
-                            'content': content,
-                            'tool_calls': tool_calls,
-                            'role': 'assistant'
-                        })
-
-                        # -----------------------------------
-
-                        # Парсинг кастомных форматов (Qwen XML / ReAct)
+                        # 2. Парсинг кастомных форматов
                         custom_tool_data = self._parse_custom_formats(content)
 
-                        # Если инструментов нет — это финал
+                        # 3. Если инструментов нет — это финал
                         if not tool_calls and not custom_tool_data:
                             final_answer = content
-                            self.history.append({"role": "assistant", "content": content})
+                            self.history.append(response_msg)
                             break
 
-                        # Сохраняем "мысль"
-                        # Для истории нужно сохранить tool_calls корректно (как dict, если это API OpenAI)
-                        # Но для упрощения сохраняем как текст + custom parsing, так как модель может путаться
-                        if tool_calls:
-                            # Конвертируем обратно в dict для совместимости с OpenAI API при следующем запросе
-                            self.history.append({
-                                "role": "assistant",
-                                "content": content,
-                                "tool_calls": [
-                                    {
-                                        "id": tc.id,
-                                        "type": "function",
-                                        "function": {
-                                            "name": tc.function.name,
-                                            "arguments": tc.function.arguments
-                                        }
-                                    } for tc in tool_calls
-                                ]
-                            })
-                        else:
-                            self.history.append({"role": "assistant", "content": content})
+                        # 4. Сохраняем "мысль"
+                        self.history.append(response_msg)
 
-                        # Подготовка инструментов
+                        # 5. Подготовка инструментов
                         to_execute = []
                         if tool_calls:
                             to_execute = tool_calls
@@ -166,14 +146,11 @@ class AgentClient:
 
                             to_execute = [FakeTool(custom_tool_data['name'], custom_tool_data['arguments'])]
 
-                        # Выполнение
+                        # 6. Выполнение
                         for tool in to_execute:
                             name = tool.function.name
                             args_str = tool.function.arguments
-                            try:
-                                args = json.loads(args_str) if isinstance(args_str, str) else args_str
-                            except:
-                                args = {}
+                            args = json.loads(args_str) if isinstance(args_str, str) else args_str
 
                             status_callback(f"🛠 Использую инструмент: {name}...")
 
@@ -192,13 +169,12 @@ class AgentClient:
                             })
 
         except Exception as e:
-            return f"❌ Ошибка соединения или модели: {e}"
+            return f"❌ Ошибка соединения с MCP сервером: {e}"
 
         return final_answer
 
     def _parse_custom_formats(self, content):
         """Парсинг ReAct, XML, Raw JSON"""
-        if not content: return None
         # ReAct
         act = re.search(r'Action:\s*([a-zA-Z0-9_]+)', content)
         arg = re.search(r'Arguments:\s*(\{.*?\})', content, re.DOTALL)
@@ -214,13 +190,14 @@ class AgentClient:
                 return json.loads(xml.group(1))
             except:
                 pass
-        # Raw JSON
-        if "json" in content.lower() and "{" in content:
-            try:
-                match = re.search(r'\{.*\}', content, re.DOTALL)
-                if match:
-                    data = json.loads(match.group(0))
-                    if "name" in data: return data
-            except:
-                pass
-        return None
+            # Raw JSON
+            if "json" in content.lower() and "{" in content:
+                try:
+                    match = re.search(r'\{.*\}', content, re.DOTALL)
+                    if match:
+                        data = json.loads(match.group(0))
+                        # Исправление: проверяем наличие 'arguments', чтобы не путать с данными компании
+                        if "name" in data and "arguments" in data:
+                            return data
+                except:
+                    pass
