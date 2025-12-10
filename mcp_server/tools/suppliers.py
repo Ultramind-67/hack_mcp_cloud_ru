@@ -14,7 +14,7 @@ os.makedirs("suppliers/raw_responses", exist_ok=True)
 async def find_suppliers(query: str, pages: int = 1) -> str:
     """Ищет поставщиков через Google Search и возвращает структурированные данные"""
     try:
-        from .web_search import google_search
+        from .web_search import perform_google_search
     except ImportError:
         return "❌ Ошибка: инструмент 'web_search' не найден. Убедитесь, что файл web_search.py существует в папке tools."
 
@@ -23,7 +23,7 @@ async def find_suppliers(query: str, pages: int = 1) -> str:
     for page in range(pages):
         start = page * 10 + 1
         # Получаем текстовый результат от вашего инструмента
-        search_text = await google_search(
+        search_text = await perform_google_search(
             query=f"{query} поставщик контакты телефон email сайт отзывы",
             start=start,
             num_results=10
