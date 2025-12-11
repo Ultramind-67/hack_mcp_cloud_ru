@@ -34,7 +34,7 @@
 
 ```bash
 # Клонируйте репозиторий
-git clone <your-repo-url>
+git clone https://github.com/stavrmoris/hack_mcp_cloud_ru
 cd hack_mcp_cloud_ru
 
 # Создайте и активируйте виртуальное окружение
@@ -52,26 +52,8 @@ pip install -r requirements.txt
 
 ```ini
 # --- LLM API (Cloud.ru) ---
-API_KEY=Ваш_Ключ_GigaChat_Или_Qwen
-
-# --- Google Search API ---
-GOOGLE_API_KEY=Ваш_Google_API_Key
-GOOGLE_CSE_ID=Ваш_Search_Engine_ID
-
-# --- Jina Reader (Web Scraping) ---
-JINA_API_KEY=Ваш_Jina_Key
-
-# --- Email (Gmail example) ---
-SMTP_SERVER=smtp.gmail.com
-SMTP_PORT=587
-IMAP_SERVER=imap.gmail.com
-IMAP_PORT=993
-EMAIL_USER=ваш_email@gmail.com
-# Внимание: Используйте App Password (Пароль приложения), а не основной пароль!
-EMAIL_PASSWORD=xxxx xxxx xxxx xxxx
-
-# --- Настройки ---
-EMAIL_CHECK_TIMEOUT=60
+API_KEY=Ваш_Ключ_Cloud_Ru
+...остальное пусть будет как было...
 ```
 
 ### 3. Запуск (Требуется 2 терминала)
