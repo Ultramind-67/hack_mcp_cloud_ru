@@ -13,24 +13,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- CUSTOM CSS ---
-st.markdown("""
-<style>
-    .stApp { background-color: #f8f9fa; }
-    .stChatMessage {
-        background-color: white;
-        border: 1px solid #e0e0e0;
-        border-radius: 12px;
-        padding: 15px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }
-    /* Блокируем сайдбар визуально, если идет загрузка (опционально) */
-    div[data-testid="stSidebar"] {
-        transition: opacity 0.3s;
-    }
-</style>
-""", unsafe_allow_html=True)
-
 # --- STATE INIT ---
 if "messages" not in st.session_state:
     st.session_state.messages = [{
