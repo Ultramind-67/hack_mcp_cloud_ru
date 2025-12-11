@@ -3,56 +3,90 @@ import asyncio
 import httpx
 from dotenv import load_dotenv
 
-# Загружаем переменные из .env
+# Загружаем ключи
 load_dotenv()
 
+CLIENT_NUMBER = os.getenv("DPD_CLIENT_NUMBER")
+CLIENT_KEY = os.getenv("DPD_CLIENT_KEY")
+URL = "https://ws.dpd.ru/services/calculator2"
 
-async def test_search():
-    api_key = os.getenv("GOOGLE_API_KEY")
-    cse_id = os.getenv("GOOGLE_CSE_ID")
 
-    print(f"🔑 API Key: {'***' + api_key[-4:] if api_key else 'НЕ НАЙДЕН'}")
-    print(f"🔎 CSE ID: {cse_id if cse_id else 'НЕ НАЙДЕН'}")
+async def test_real_dpd():
+    print("=" * 60)
+    print("💎 ФИНАЛЬНЫЙ ТЕСТ DPD (С КОДАМИ РЕГИОНОВ)")
+    print("=" * 60)
 
-    if not api_key or not cse_id:
-        print("❌ Ошибка: Не заданы ключи в .env")
+    if not CLIENT_NUMBER or not CLIENT_KEY:
+        print("❌ ОШИБКА: Нет ключей в .env")
         return
 
-    url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        "key": api_key,
-        "cx": cse_id,
-        "q": "курс биткоина к доллару",  # Тестовый запрос
-        "num": 1
-    }
+    # XML запрос с ЯВНЫМ указанием regionCode (77 и 78)
+    # Это именно то исправление, которое мы внесли в агента
+    payload = f"""
+    <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ns="http://dpd.ru/ws/calculator/2012-03-20">
+       <soapenv:Header/>
+       <soapenv:Body>
+          <ns:getServiceCost2>
+             <request>
+                <auth>
+                   <clientNumber>{CLIENT_NUMBER}</clientNumber>
+                   <clientKey>{CLIENT_KEY}</clientKey>
+                </auth>
+                <pickup>
+                   <cityName>Москва</cityName>
+                   <regionCode>77</regionCode>
+                   <countryCode>RU</countryCode>
+                </pickup>
+                <delivery>
+                   <cityName>Санкт-Петербург</cityName>
+                   <regionCode>78</regionCode>
+                   <countryCode>RU</countryCode>
+                </delivery>
+                <selfPickup>false</selfPickup>
+                <selfDelivery>false</selfDelivery>
+                <weight>2.5</weight>
+                <serviceCode>PCL</serviceCode>
+                <declaredValue>0</declaredValue>
+             </request>
+          </ns:getServiceCost2>
+       </soapenv:Body>
+    </soapenv:Envelope>
+    """
 
-    print("\n⏳ Отправка запроса в Google...")
+    headers = {"Content-Type": "text/xml; charset=utf-8"}
+
+    print(f"📡 Отправка запроса (Москва [77] -> СПб [78], 2.5 кг)...")
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params)
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(URL, content=payload.encode('utf-8'), headers=headers)
 
-            # Если код не 200, выводим ошибку
-            if response.status_code != 200:
-                print(f"❌ Ошибка API: {response.status_code}")
-                print(response.text)
-                return
+            print(f"HTTP Статус: {response.status_code}")
 
-            data = response.json()
+            # Смотрим, что внутри
+            response_text = response.text
 
-            if "items" in data:
-                first_result = data["items"][0]
-                print("\n✅ УСПЕХ! Google работает.")
-                print(f"Заголовок: {first_result.get('title')}")
-                print(f"Ссылка: {first_result.get('link')}")
-                print(f"Сниппет: {first_result.get('snippet')}")
+            if "<cost>" in response_text:
+                # Вытаскиваем цену грубым парсингом для наглядности
+                import re
+                cost = re.search(r'<cost>(.*?)</cost>', response_text).group(1)
+                days = re.search(r'<days>(.*?)</days>', response_text).group(1)
+
+                print("\n✅ УСПЕХ! РЕАЛЬНЫЙ API ОТВЕТИЛ:")
+                print(f"💰 Стоимость: {cost} руб.")
+                print(f"🚚 Срок: {days} дн.")
+                print("\n(Это НЕ эмуляция, это данные от сервера DPD)")
+
+            elif "Fault" in response_text:
+                print("\n⚠️ СЕРВЕР ВЕРНУЛ ОШИБКУ БИЗНЕС-ЛОГИКИ:")
+                print(response_text)
             else:
-                print(
-                    "\n⚠️ Запрос прошел, но результатов нет. Проверьте настройки Search Engine (должен быть включен 'Search the entire web').")
+                print("\n❓ НЕПОНЯТНЫЙ ОТВЕТ:")
+                print(response_text)
 
     except Exception as e:
-        print(f"❌ Сетевая ошибка: {e}")
+        print(f"\n❌ ОШИБКА СОЕДИНЕНИЯ: {e}")
 
 
 if __name__ == "__main__":
-    asyncio.run(test_search())
+    asyncio.run(test_real_dpd())
