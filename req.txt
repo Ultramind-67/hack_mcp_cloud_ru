@@ -10,3 +10,4 @@ llm_client
 aiogram
 streamlit
 watchdog
+chainlit

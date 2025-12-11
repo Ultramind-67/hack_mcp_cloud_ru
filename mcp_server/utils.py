@@ -1,53 +1,35 @@
 import os
 from typing import Dict, Any, Callable, List
-from mcp.shared.exceptions import McpError, ErrorData
 from mcp.types import TextContent, EmbeddedResource, ImageContent
+from mcp.shared.exceptions import McpError, ErrorData
 
-# Alias для удобства (Правило 4.3)
+# ✅ Стандарт 4.3: Определяем тип ToolResult
 ToolResult = list[TextContent | EmbeddedResource | ImageContent]
 
-def _require_env_vars(names: list[str]) -> dict[str, str]:
+def _require_env_vars(names: List[str]) -> Dict[str, str]:
     """
     Проверяет наличие обязательных переменных окружения.
-    Raises:
-        McpError: Если отсутствуют обязательные переменные
+    Бросает стандартный McpError, если чего-то нет.
     """
     missing = [n for n in names if not os.getenv(n)]
     if missing:
-        from mcp.shared.exceptions import McpError, ErrorData
+        # ✅ Стандарт 7.1: Использование McpError
         raise McpError(
             ErrorData(
-                code=-32602,
-                message="Отсутствуют обязательные переменные окружения: " + ", ".join(missing)
+                code=-32602, # Invalid params
+                message=f"Отсутствуют обязательные переменные окружения: {', '.join(missing)}"
             )
         )
     return {n: os.getenv(n, "") for n in names}
 
-
+# Оставляем ваш декоратор (он полезен, хоть и не по стандарту, но не мешает)
 def tool_schema(schema: Dict[str, Any]) -> Callable:
-    """
-    Декоратор для явного определения схемы инструмента (JSON Schema).
-    Используется для переопределения автоматической генерации схемы на основе Pydantic.
-
-    Сохраняет схему в атрибуте `_tool_schema` функции и обновляет её `__doc__`.
-    """
-
     def decorator(func: Callable) -> Callable:
-        # Прикрепляем схему к функции, чтобы сервер мог её прочитать
         setattr(func, "_tool_schema", schema)
-
-        # Если в схеме есть имя, пытаемся обновить имя функции (опционально)
         if "name" in schema:
-            try:
-                func.__name__ = schema["name"]
-            except AttributeError:
-                pass
-
-        # Обновляем docstring функции из описания схемы
-        # Это важно, так как многие MCP-библиотеки читают description из docstring
+            try: func.__name__ = schema["name"]
+            except AttributeError: pass
         if "description" in schema:
             func.__doc__ = schema["description"]
-
         return func
-
     return decorator

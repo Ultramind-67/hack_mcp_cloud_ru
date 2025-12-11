@@ -36,8 +36,7 @@ def main():
     print(f"🔗 Адрес: http://127.0.0.1:8000/sse")
     print("⏳ Ожидание подключений (не закрывайте это окно!)...")
 
-    # ВАЖНО: host="127.0.0.1" (не localhost, не 0.0.0.0) для Mac OS
-    mcp.run(transport="sse", host="127.0.0.1", port=8000)
+    mcp.run(transport="sse", host="0.0.0.0", port=8000)
 
 
 if __name__ == "__main__":
