@@ -136,6 +136,7 @@ https://8c88f15b-c8e5-4a1c-b3f2-6b811c271f94-mcp-server.ai-agent.inference.cloud
 │   ├── mcp_instance.py       # Инстанс приложения
 │   └── tools/                # Инструменты (Tools)
 │       ├── suppliers.py      # Поиск и профилирование
+│       ├── rag_tools.py      # Векторная база и Реранкер
 │       ├── dpd_calculator.py # Логистика (SOAP API + Mock)
 │       ├── send_email.py     # Работа с почтой
 │       ├── web_search.py     # Google Search
