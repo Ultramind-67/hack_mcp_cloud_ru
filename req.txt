@@ -1,3 +1,4 @@
+requests
 fastmcp
 pydantic
 httpx
@@ -11,3 +12,4 @@ aiogram
 streamlit
 watchdog
 chainlit
+gspread

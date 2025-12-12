@@ -1,181 +1,171 @@
-# mcp_server/tools/export_tools.py
 import csv
 import os
 import json
 import re
+import requests
 from datetime import datetime
 from mcp_server.mcp_instance import mcp
-from mcp_server.utils import _require_env_vars
+
+# --- НАСТРОЙКИ ЯНДЕКСА ---
+YANDEX_TOKEN = os.getenv("YANDEX_DISK_TOKEN")
 
 
-@mcp.tool(
-    description="Экспортирует табличные данные в CSV файл. Args: data - строка с таблицей в Markdown или JSON, filename - имя файла (по умолчанию: export.csv)"
-)
-async def export_to_csv(data: str, filename: str = "export.csv") -> str:
+def _upload_to_yandex_disk(local_path: str, remote_filename: str) -> str:
     """
-    Экспортирует табличные данные в CSV файл из Markdown таблицы или JSON.
+    Вспомогательная функция для загрузки файла на Яндекс.Диск.
+    Возвращает публичную ссылку или None, если произошла ошибка.
     """
+    if not YANDEX_TOKEN or "ВСТАВЬ" in YANDEX_TOKEN:
+        print("⚠️ Яндекс Токен не настроен.")
+        return None
+
+    headers = {'Authorization': f'OAuth {YANDEX_TOKEN}'}
+
     try:
-        # Создаем директорию для экспорта если не существует
-        os.makedirs("exports", exist_ok=True)
+        # 1. Получаем URL для загрузки
+        upload_url_resp = requests.get(
+            'https://cloud-api.yandex.net/v1/disk/resources/upload',
+            headers=headers,
+            params={'path': remote_filename, 'overwrite': 'true'},
+            timeout=10
+        )
 
-        filepath = os.path.join("exports", filename)
+        if upload_url_resp.status_code != 200:
+            print(f"Ошибка получения URL загрузки: {upload_url_resp.json()}")
+            return None
 
-        # Пытаемся определить формат данных
-        if data.strip().startswith("|"):  # Markdown таблица
-            csv_data = await _parse_markdown_table(data)
-        elif data.strip().startswith("[") or data.strip().startswith("{"):  # JSON
-            csv_data = await _parse_json_data(data)
-        else:
-            # Пытаемся найти таблицу в тексте
-            table_match = re.search(r'(\|.*\|[\s\S]*?)(?=\n\n|\Z)', data)
-            if table_match:
-                csv_data = await _parse_markdown_table(table_match.group(1))
-            else:
-                return "❌ Не удалось распознать табличные данные. Убедитесь, что данные представлены в формате Markdown таблицы или JSON."
+        href = upload_url_resp.json()['href']
 
-        if not csv_data:
-            return "❌ Не удалось извлечь данные для экспорта."
+        # 2. Загружаем файл
+        with open(local_path, 'rb') as f:
+            upload_resp = requests.put(href, files={'file': f}, timeout=30)
 
-        # Записываем в CSV
-        with open(filepath, 'w', newline='', encoding='utf-8-sig') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerows(csv_data)
+        if upload_resp.status_code != 201:
+            print(f"Ошибка загрузки файла: {upload_resp.status_code}")
+            return None
 
-        return f"✅ Данные успешно экспортированы в: {filepath}\n📊 Строк: {len(csv_data) - 1}, Колонок: {len(csv_data[0])}"
+        # 3. Публикуем файл (делаем доступным по ссылке)
+        requests.put(
+            'https://cloud-api.yandex.net/v1/disk/resources/publish',
+            headers=headers,
+            params={'path': remote_filename},
+            timeout=10
+        )
+
+        # 4. Получаем публичную ссылку
+        meta_resp = requests.get(
+            'https://cloud-api.yandex.net/v1/disk/resources',
+            headers=headers,
+            params={'path': remote_filename},
+            timeout=10
+        )
+
+        info = meta_resp.json()
+        return info.get('public_url')
 
     except Exception as e:
-        return f"❌ Ошибка экспорта: {str(e)}"
-
-
-async def _parse_markdown_table(markdown_table: str):
-    """
-    Парсит Markdown таблицу в список списков для CSV.
-    """
-    lines = [line.strip() for line in markdown_table.strip().split('\n') if line.strip()]
-
-    # Убираем разделительные строки (| --- | --- |)
-    filtered_lines = []
-    for line in lines:
-        if not re.match(r'^\|?[\s:---]+[\|:]', line) and '|' in line:
-            filtered_lines.append(line)
-
-    # Парсим строки с данными
-    csv_data = []
-    for line in filtered_lines:
-        # Убираем начальный и конечный | если есть
-        if line.startswith('|'):
-            line = line[1:]
-        if line.endswith('|'):
-            line = line[:-1]
-
-        # Разделяем по | и очищаем значения
-        cells = [cell.strip() for cell in line.split('|')]
-        csv_data.append(cells)
-
-    return csv_data
-
-
-async def _parse_json_data(json_str: str):
-    """
-    Парсит JSON данные в CSV формат.
-    """
-    try:
-        data = json.loads(json_str)
-
-        if isinstance(data, dict):
-            # Один объект
-            headers = list(data.keys())
-            values = list(data.values())
-            return [headers, values]
-        elif isinstance(data, list) and data:
-            # Массив объектов
-            headers = list(data[0].keys())
-            csv_data = [headers]
-            for item in data:
-                row = [str(item.get(h, '')) for h in headers]
-                csv_data.append(row)
-            return csv_data
-        else:
-            return None
-    except json.JSONDecodeError:
+        print(f"⚠️ Исключение при работе с Яндекс.Диском: {e}")
         return None
 
 
 @mcp.tool(
-    description="Экспортирует результаты анализа поставщиков в CSV. Args: analysis_text - текст с анализом от LLM"
+    description="Экспортирует табличные данные в CSV файл и загружает на Яндекс.Диск."
 )
-async def export_suppliers_analysis(analysis_text: str) -> str:
-    """
-    Специальная функция для экспорта анализа поставщиков из текста LLM.
-    """
+async def export_to_csv(data: str, filename: str = "export.csv") -> str:
     try:
-        # Ищем таблицу в тексте
-        table_pattern = r'\|[^|\n]+\|[\s\S]*?(?=\n\n|\Z)'
-        tables = re.findall(table_pattern, analysis_text)
+        os.makedirs("exports", exist_ok=True)
+        filepath = os.path.join("exports", filename)
 
-        if not tables:
-            return "❌ В тексте анализа не найдено табличных данных."
+        csv_data = await _parse_any_data(data)
+        if not csv_data:
+            return "❌ Данные не распознаны."
 
-        # Берем первую найденную таблицу (обычно это основная)
-        markdown_table = tables[0]
+        # 1. Сохраняем локально
+        with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerows(csv_data)
 
-        # Генерируем имя файла с датой
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"suppliers_analysis_{timestamp}.csv"
+        response_msg = f"✅ Экспорт успешен (локально): {filepath}"
 
-        return await export_to_csv(markdown_table, filename)
+        # 2. Загружаем в облако
+        public_link = _upload_to_yandex_disk(filepath, filename)
+
+        if public_link:
+            response_msg += f"\n☁️ Ссылка на Яндекс.Диск: {public_link}"
+        else:
+            response_msg += "\n⚠️ Не удалось загрузить на Яндекс.Диск (см. логи), но локальный файл сохранен."
+
+        return response_msg
 
     except Exception as e:
-        return f"❌ Ошибка экспорта анализа: {str(e)}"
+        return f"Ошибка: {e}"
 
 
 @mcp.tool(
-    description="Создает CSV с топом поставщиков на основе таблицы из анализа"
+    description="Создает CSV с топом поставщиков из текста, сохраняет локально и на Яндекс.Диск."
 )
 async def create_suppliers_top_csv(analysis_text: str) -> str:
     """
-    Создает CSV файл с топом поставщиков из текста анализа.
+    Универсальный парсер таблиц для отчетов с выгрузкой в облако.
     """
     try:
-        # Более специфичный паттерн для таблицы с поставщиками
-        table_pattern = r'(\|.*Место.*Компания.*ИНН.*[\s\S]*?)(?=\n\n|\|?\s*\n\s*\n|\Z)'
-        match = re.search(table_pattern, analysis_text, re.IGNORECASE)
+        os.makedirs("exports", exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"top_suppliers_{timestamp}.csv"
+        filepath = os.path.join("exports", filename)
 
-        if not match:
-            # Пробуем найти любую таблицу с цифрами и названиями компаний
-            table_pattern2 = r'(\|\s*\d+\s*\|[^|]+\|\s*\d{10,}\s*\|[^|]+\|[^|]+\|[^|]+\|)'
-            matches = re.findall(table_pattern2, analysis_text)
-            if matches:
-                # Собираем таблицу вручную
-                headers = ["Место", "Компания", "ИНН", "Объём производства, тыс. руб.", "Динамика", "Регион"]
-                rows = []
-                for match in matches:
-                    cells = [cell.strip() for cell in match.split('|') if cell.strip()]
-                    if len(cells) >= 6:
-                        rows.append(cells)
+        # 1. Пытаемся найти Markdown таблицу
+        rows = re.findall(r'^\s*\|.*\|.*$', analysis_text, re.MULTILINE)
 
-                if rows:
-                    csv_data = [headers] + rows
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"top_suppliers_{timestamp}.csv"
+        if not rows:
+            return "❌ В тексте не найдено строк таблицы (формат Markdown)."
 
-                    filepath = os.path.join("exports", filename)
-                    os.makedirs("exports", exist_ok=True)
+        # 2. Парсим строки
+        csv_data = []
+        for row in rows:
+            if '---' in row:
+                continue
+            cells = [cell.strip() for cell in row.strip().split('|')]
+            # Чистка пустых краев
+            if len(cells) > 2 and cells[0] == '' and cells[-1] == '':
+                cells = cells[1:-1]
+            elif len(cells) > 1 and cells[0] == '':
+                cells = cells[1:]
+            elif len(cells) > 1 and cells[-1] == '':
+                cells = cells[:-1]
 
-                    with open(filepath, 'w', newline='', encoding='utf-8-sig') as csvfile:
-                        writer = csv.writer(csvfile)
-                        writer.writerows(csv_data)
+            if any(cells):
+                csv_data.append(cells)
 
-                    return f"✅ Топ поставщиков экспортирован в: {filepath}"
+        if not csv_data:
+            return "❌ Таблица найдена, но не удалось извлечь данные."
 
-        if match:
-            markdown_table = match.group(1)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"top_suppliers_{timestamp}.csv"
-            return await export_to_csv(markdown_table, filename)
+        # 3. Сохраняем локально
+        with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerows(csv_data)
 
-        return "❌ Не удалось найти таблицу с топом поставщиков в анализе."
+        response_msg = f"✅ Таблица сохранена локально: {filepath}\n📊 Строк: {len(csv_data)}"
+
+        # 4. Загружаем в облако
+        # Используем то же имя файла, что и локально
+        public_link = _upload_to_yandex_disk(filepath, filename)
+
+        if public_link:
+            response_msg += f"\n☁️ **Ссылка для скачивания:** {public_link}"
+        else:
+            response_msg += "\n⚠️ Ошибка выгрузки в Яндекс.Диск (токен неверен или сбой сети)."
+
+        return response_msg
 
     except Exception as e:
-        return f"❌ Ошибка создания CSV: {str(e)}"
+        return f"❌ Критическая ошибка: {str(e)}"
+
+
+async def _parse_any_data(data):
+    if data.strip().startswith("[") or data.strip().startswith("{"):
+        try:
+            return json.loads(data)
+        except:
+            pass
+    return None
