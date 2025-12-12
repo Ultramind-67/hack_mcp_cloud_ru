@@ -1,18 +1,27 @@
-# Используем Python 3.11 (как у вас в venv)
+# Используем легкий образ Python
 FROM python:3.11-slim
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем файл зависимостей и устанавливаем их
+# Устанавливаем системные зависимости (если нужны для сборки)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Копируем зависимости и устанавливаем их
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем весь код проекта в контейнер
+# Копируем весь код проекта
 COPY . .
 
-# Открываем порт 8000 (на нем работает сервер)
+# Делаем скрипт запуска исполняемым
+RUN chmod +x start.sh
+
+# Открываем порт Streamlit (8501) и Сервера (8000)
+EXPOSE 8501
 EXPOSE 8000
 
-# Команда запуска сервера
-CMD ["python", "-m", "mcp_server.server"]
+# Запускаем скрипт
+CMD ["./start.sh"]
