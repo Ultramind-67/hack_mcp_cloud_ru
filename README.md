@@ -1,5 +1,7 @@
 # 🏢 AI Procurement Agent (MCP Based)
 
+💾 [Видеозапись решения](https://drive.google.com/drive/folders/1Re2YorqgRxy1qvU-Pctq0_bO8hcO3CIk?usp=sharing) 
+
 Интеллектуальный агент для автоматизации процесса закупок. Проект построен на архитектуре **Model Context Protocol (MCP)** и позволяет искать поставщиков, анализировать их сайты, рассчитывать логистику, вести деловую переписку и формировать аналитические отчеты.
 
 ![Architecture](architecture_diagram.png)
