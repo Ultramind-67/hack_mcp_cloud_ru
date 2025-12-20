@@ -1,150 +1,127 @@
-# 🏢 AI Procurement Agent (MCP Based)
+[![Ru](https://img.shields.io/badge/lang-ru-green.svg)](README.ru.md)
+# 🏢 AI Procurement Agent (MCP-based Architecture)
 
-💾 [Видеозапись решения](https://drive.google.com/drive/folders/1Re2YorqgRxy1qvU-Pctq0_bO8hcO3CIk?usp=sharing) 
+[![Hackathon Winner](https://img.shields.io/badge/Award-3rd_Place_Cloud.ru_Hackathon-orange)](https://cloud.ru)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![Architecture](https://img.shields.io/badge/Architecture-Model_Context_Protocol-purple)](https://modelcontextprotocol.io/)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-2496ED)](https://www.docker.com/)
 
-Интеллектуальный агент для автоматизации процесса закупок. Проект построен на архитектуре **Model Context Protocol (MCP)** и позволяет искать поставщиков, анализировать их сайты, рассчитывать логистику, вести деловую переписку и формировать аналитические отчеты.
-
-![Architecture](architecture_diagram.png)
-
-## ✨ Возможности
-
-*   **🧠 Гибридная память (RAG):** Агент запоминает всех найденных поставщиков. При повторном запросе он сначала ищет в локальной базе знаний (ChromaDB + Qwen Reranker), экономя бюджет на внешние API и ускоряя ответ.
-*   **🔍 Умный поиск поставщиков:** Использует Google API для поиска релевантных компаний, отфильтровывая мусорные сайты.
-*   **📄 Анализ сайтов:** Читает содержимое веб-страниц (через Jina AI), анализирует ассортимент и условия.
-*   **🚚 Логистика и Расчеты:** Встроенный калькулятор **DPD**. Рассчитывает стоимость и сроки доставки, выбирает самые выгодные тарифы. Работает в боевом режиме (SOAP API) и режиме эмуляции (для демо).
-*   **🗂 Генерация досье:** Автоматически создает Markdown-профиль на каждого поставщика в папке `suppliers/`.
-*   **📨 Коммуникация:** Умеет писать и отправлять письма поставщикам, а также проверять ответы (SMTP/IMAP).
-*   **📊 Экспорт данных:** Формирует сводные таблицы (CSV) с рейтингами и ценами.
-*   **☁️ Облачный экспорт:** Формирует сводные таблицы (CSV) и автоматически **загружает их на Яндекс.Диск**, предоставляя пользователю прямую ссылку для скачивания.
-*   **🖥️ Web-интерфейс:** Удобный Dashboard на Streamlit с чатом и управлением файлами.
+> **An autonomous multi-agent system designed to automate the procurement supply chain.**  
+> Built using the **Model Context Protocol (MCP)**, this agent integrates Large Language Models (LLMs) with legacy enterprise APIs (SOAP), real-time web search, and a persistent RAG memory system.
 
 ---
 
-## 🛠 Технический стек
+## 🚀 Project Overview
 
-*   **Core:** Python 3.11+, FastMCP, Streamlit
-*   **Containerization:** Docker
-*   **LLM:** Cloud.ru GigaChat / Qwen (OpenAI-compatible)
-*   **RAG & Search:** ChromaDB, Qwen Embedding, Qwen Reranker
-*   **External APIs:** Google Search, Jina.ai, DPD SOAP API, Gmail (SMTP/IMAP), Yandex Disk.
+This project was developed during the Cloud.ru Hackathon (3rd Place Winner). It solves a complex business problem: automating the interaction with suppliers, calculating logistics, and managing procurement data.
+
+Unlike standard chatbots, this agent operates on a **Client-Server architecture** using the **Model Context Protocol (MCP)** by Anthropic. This allows the LLM to securely call external tools, execute code, and maintain state across sessions.
+
+### Key Features
+*   **🤖 Custom ReAct Loop:** Implemented a manual "Reasoning + Acting" loop (bypassing high-level abstractions like LangChain) for granular control over the agent's decision-making process.
+*   **🧠 Hybrid RAG System:** Utilizes **ChromaDB** for vector storage and **Qwen-Reranker** to filter retrieved documents, ensuring high relevance of context.
+*   **🔌 Legacy API Integration:** Seamlessly integrates with **DPD Logistics SOAP API**, handling raw XML construction and parsing within a modern Python async environment.
+*   **📂 File-System Persistence:** The agent maintains "dossiers" on suppliers in Markdown format, automatically indexing them into its knowledge base.
+*   **🌐 Real-time Web Intelligence:** Performs Google Search and parses website content (using Jina AI) to extract pricing and product data.
 
 ---
 
-## 🚀 Быстрый старт (Docker)
+## 🛠 Technical Architecture
 
-Проект упакован в Docker-контейнер, который содержит и сервер, и интерфейс. Вы можете запустить его одной командой.
+The system is split into two main components following the MCP standard:
 
-### Вариант 1: Мгновенный запуск (Demo Mode) ⚡️
-В этот образ уже «зашиты» демонстрационные ключи. Это идеальный вариант, чтобы быстро проверить работоспособность проекта без настройки.
+### 1. The Agent (Client)
+*   **Core Logic:** `agent/core.py` implements the ReAct loop. It parses the LLM's thought process, detects action triggers, and sends requests to the MCP Server.
+*   **Interface:** A Streamlit-based dashboard for user interaction.
+*   **LLM:** Integrated with **Qwen-2.5-Instruct** (via Cloud.ru API) and OpenAI-compatible endpoints.
 
+### 2. The MCP Server (Tools)
+*   **Framework:** Built with `FastMCP`. Exposes tools as standardized endpoints.
+*   **Tools Implemented:**
+    *   `dpd_calculator`: Logistics cost calculation (SOAP/XML).
+    *   `rag_tools`: Embedding generation and Reranking logic.
+    *   `web_search` & `jina_reader`: Internet data mining.
+    *   `send_email`: SMTP/IMAP client for supplier communication.
+
+![Architecture Diagram](architecture_diagram.png)
+
+---
+
+## 💻 Installation & Setup
+
+The project is fully containerized.
+
+### Prerequisites
+*   Docker & Docker Compose
+*   API Keys (Cloud.ru / OpenAI, Google Search, DPD credentials)
+
+### 1. Clone the repository
 ```bash
-docker run -p 8501:8501 stavrmoris777/mcp-agent:latest
-```
-
-После запуска перейдите по адресу: [http://localhost:8501](http://localhost:8501)
-
----
-
-### Вариант 2: Запуск со своими ключами 🔑
-Если вы хотите использовать свои лимиты API или подключить собственные сервисы (например, свою почту), используйте этот метод.
-
-1. **Создайте файл `.env`** в любой папке и замените API_KEY на ваш ключ Cloud.ru:
-   ```ini
-   # --- LLM ---
-   API_KEY=sk-... 
-    # ...достаточно заменить только этот токен, остальное из дефолтного .env...
-   ```
-
-2. **Запустите контейнер с вашим файлом:**
-   ```bash
-   docker run -p 8501:8501 --env-file .env stavrmoris777/mcp-agent:latest
-   ```
-
----
-
-## 💻 Запуск для Разработки (Локально)
-
-Если вы хотите менять код, используйте локальный запуск.
-
-### 1. Установка
-```bash
-git clone https://github.com/stavrmoris/hack_mcp_cloud_ru
+git clone https://github.com/stavrmoris/hack_mcp_cloud_ru.git
 cd hack_mcp_cloud_ru
-
-python -m venv .venv
-source .venv/bin/activate  # Mac/Linux
-# .venv\Scripts\activate   # Windows
-
-pip install -r requirements.txt
 ```
 
-### 2. Запуск (Требуется 2 терминала)
-Архитектура MCP требует параллельной работы Сервера и Клиента.
+### 2. Configure Environment
+Create a `.env` file in the root directory:
+```ini
+API_KEY=your_llm_api_key
+GOOGLE_API_KEY=your_google_key
+GOOGLE_CSE_ID=your_cse_id
+DPD_CLIENT_NUMBER=your_dpd_login
+DPD_CLIENT_KEY=your_dpd_key
+# See .env.example for full list
+```
 
-**Терминал 1: Запуск MCP Сервера**
+### 3. Run via Docker
 ```bash
-python -m mcp_server.server
+docker build -t mcp-agent .
+docker run -p 8501:8501 --env-file .env mcp-agent
 ```
-*Ожидаемый вывод:* `🚀 ЗАПУСК СЕРВЕРА... Адрес: http://127.0.0.1:8000/sse`
-
-**Терминал 2: Запуск Интерфейса**
-```bash
-streamlit run app.py
-```
-
----
-## ☁️ Публичный MCP-сервер (Cloud.ru)
-
-Серверная часть проекта (MCP Server) уже развернута в облаке **Cloud.ru Evolution** и доступна публично. Вы можете подключить к ней любой MCP-совместимый клиент (например, **Chatbox AI** или **Claude Desktop**), чтобы использовать инструменты агента (поиск, расчет DPD, почта) через привычный чат-интерфейс.
-
-**URL для подключения:**
-```text
-https://8c88f15b-c8e5-4a1c-b3f2-6b811c271f94-mcp-server.ai-agent.inference.cloud.ru/mcp
-```
-
-### 🔌 Как подключиться (пример для Chatbox)
-1. Откройте настройки Chatbox -> раздел **MCP**.
-2. Нажмите **Add MPC Server**.
-3. Вставьте указанный выше URL.
-4. Теперь вы можете просить чат-бота: *"Рассчитай доставку DPD из Москвы в Казань"* — он выполнит это через наш сервер.
-
-📖 **Подробная инструкция:** [Как подключить MCP-сервер к Chatbox (Документация Cloud.ru)](https://cloud.ru/docs/ai-agents/ug/topics/tutorials__connect-mcp-chatbox?source-platform=Evolution)
-
----
-## 🧠 Сценарий работы (ReAct)
-
-Система работает по циклу **Мысль → Действие → Наблюдение**.
-![Logic Flow](logic_flow.png)
-1.  **Пользователь:** *"Найди поставщиков кабеля в Москве и рассчитай доставку 500кг в Питер".*
-2.  **Агент:** 
-    *   **Проверяет RAG:** Ищет информацию в локальной базе знаний.
-    *   **Ищет в Web:** Если данных нет, вызывает `find_suppliers` (Google).
-    *   **Анализирует:** Читает сайты (`read_url`) и считает доставку (`calculate_dpd_delivery`).
-    *   **Запоминает:** Новые данные автоматически индексируются в базу.
-3.  **Результат:** Агент формирует отчет, сохраняет CSV таблицу, **загружает её в Яндекс.Диск** и отдает пользователю ссылку.
+Access the dashboard at `http://localhost:8501`
 
 ---
 
-## 📂 Структура проекта
+## 🧠 Deep Dive: Engineering Highlights
+
+### Manual ReAct Implementation
+Instead of relying on "black box" frameworks, I implemented the agentic loop manually in `agent/core.py`. This allows for:
+*   Robust error handling when the LLM hallucinates arguments.
+*   Support for multiple tool calling formats (XML, JSON, raw text).
+*   Full observability of the "Thought -> Action -> Observation" chain.
+
+### Integration with Legacy Systems (SOAP)
+Many enterprise systems still rely on SOAP. This agent bridges the gap between modern JSON-based LLMs and XML-based SOAP services.
+*   **File:** `mcp_server/tools/dpd_calculator.py`
+*   **Logic:** Manually constructs SOAP Envelopes, handles XML namespaces, and parses responses into structured JSON for the Agent.
+
+### Advanced RAG (Retrieval-Augmented Generation)
+To avoid context pollution, the system uses a two-stage retrieval process:
+1.  **Retrieval:** Fetch top-10 chunks from ChromaDB using cosine similarity.
+2.  **Reranking:** Re-score these chunks using a Cross-Encoder model (`Qwen-Reranker`) to select the top-3 most semantically relevant contexts.
+
+---
+
+## 📂 Project Structure
 
 ```text
-.
-├── agent/                  # 🧠 Клиентская часть
-│   ├── app.py                # Интерфейс Streamlit
-│   ├── core.py               # Логика агента (ReAct loop, HTTP client)
-│   └── llm_client.py         # Подключение к LLM
-├── mcp_server/             # 🛠 Серверная часть
-│   ├── server.py             # Точка входа FastMCP
-│   ├── mcp_instance.py       # Инстанс приложения
-│   └── tools/                # Инструменты (Tools)
-│       ├── suppliers.py      # Поиск и профилирование
-│       ├── rag_tools.py      # Векторная база и Реранкер
-│       ├── dpd_calculator.py # Логистика (SOAP API + Mock)
-│       ├── send_email.py     # Работа с почтой
-│       ├── web_search.py     # Google Search
-│       └── jina_reader.py    # Парсинг сайтов
-├── suppliers/              # Папка для сохраненных досье (.md)
-├── exports/                # Папка для CSV отчетов
-├── Dockerfile              # Конфигурация образа
-└── start.sh                # Скрипт запуска процессов в контейнере
+├── agent/                  # Client-side Logic
+│   ├── core.py             # Custom ReAct Loop Implementation
+│   ├── bot.py              # Telegram Bot Interface
+│   └── main.py             # CLI Runner
+├── mcp_server/             # Server-side Tools (FastMCP)
+│   ├── server.py           # Entry point
+│   └── tools/
+│       ├── dpd_calculator.py # SOAP API wrapper
+│       ├── rag_tools.py      # Vector DB & Reranking
+│       ├── web_search.py     # Google Custom Search
+│       └── suppliers.py      # Business logic
+├── suppliers/              # Generated markdown dossiers (Persistent Memory)
+├── Dockerfile              # Container config
+└── app.py                  # Streamlit Dashboard
 ```
+
+---
+
+## 🏆 Acknowledgments
+*   **Cloud.ru** for providing the LLM infrastructure and hosting the Hackathon.
+*   **Anthropic** for the Model Context Protocol specification.
