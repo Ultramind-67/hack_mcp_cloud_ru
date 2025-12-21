@@ -36,6 +36,78 @@ Unlike standard chatbots, this agent operates on a **Client-Server architecture*
 *   **Memory (RAG):** ChromaDB (Vector Store), Qwen-Embedding, Qwen-Reranker
 *   **External APIs:** Google Search, Jina.ai, DPD SOAP API, Gmail (SMTP/IMAP), Yandex Disk API.
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'fontFamily': 'Arial', 'fontSize': '14px', 'primaryTextColor': '#333' }}}%%
+flowchart TB
+    %% --- Стилизация ---
+    classDef user fill:#2d3748,stroke:#2d3748,stroke-width:2px,color:#fff,font-weight:bold
+    classDef client fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,rx:5,ry:5
+    classDef mcp fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,rx:5,ry:5
+    classDef tool fill:#f3e5f5,stroke:#8e24aa,stroke-width:1px,stroke-dasharray: 0
+    classDef storage fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef external fill:#f5f5f5,stroke:#616161,stroke-width:1px,stroke-dasharray: 5 5,color:#616161
+    classDef ai fill:#ede7f6,stroke:#673ab7,stroke-width:2px,stroke-dasharray: 5 5
+
+    %% --- Узлы ---
+    User((👤 User)):::user
+
+    subgraph Client ["🔹 Client Side (Streamlit)"]
+        direction TB
+        UI[Streamlit Dashboard]:::client
+        Core[Agent Core / ReAct Loop]:::client
+        LLM_Client[LLM Client Wrapper]:::client
+    end
+
+    subgraph AICloud ["☁️ AI Provider"]
+        Qwen((Qwen-2.5<br>Cloud.ru)):::ai
+    end
+
+    subgraph MCP ["🔸 MCP Server Backend"]
+        direction TB
+        MCP_Hub[MCP Instance Hub]:::mcp
+        
+        subgraph ToolSet ["Available Tools"]
+            Tool_Search(Google Search):::tool
+            Tool_Scraper(Jina Reader):::tool
+            Tool_Logistics(DPD Calculator):::tool
+            Tool_Email(Email Client):::tool
+            Tool_RAG(RAG Manager):::tool
+        end
+    end
+
+    subgraph Persistence ["💾 Persistence & Memory"]
+        Chroma[(ChromaDB<br>Vector Store)]:::storage
+        Files[(Markdown<br>Dossiers)]:::storage
+        Yandex[(Yandex<br>Disk)]:::storage
+    end
+
+    subgraph World ["🌐 External World"]
+        GoogleAPI[Google API]:::external
+        DPD_API[DPD SOAP API]:::external
+        Suppliers[Supplier Websites]:::external
+        SMTP[SMTP/IMAP]:::external
+    end
+
+    %% --- Связи ---
+    User -->|Chat Request| UI
+    UI --> Core
+    Core <-->|Reasoning| LLM_Client
+    LLM_Client -.->|API Call| Qwen
+    
+    Core <==>|MCP Protocol<br>JSON-RPC| MCP_Hub
+    
+    MCP_Hub --> Tool_Search & Tool_Scraper & Tool_Logistics & Tool_Email & Tool_RAG
+    
+    Tool_Search -->|JSON| GoogleAPI
+    Tool_Scraper -->|Scrape| Suppliers
+    Tool_Logistics -->|XML/SOAP| DPD_API
+    Tool_Email -->|Auth| SMTP
+    Tool_RAG <-->|Embed/Retrieve| Chroma
+    
+    Core -->|Save Profile| Files
+    Files -.->|Auto-Index| Tool_RAG
+    Core -->|Export Report| Yandex
+```
 ---
 
 ## 🚀 Quick Start (Docker)
