@@ -34,7 +34,7 @@ Unlike standard chatbots, this agent operates on a **Client-Server architecture*
 *   **Containerization:** Docker
 *   **LLM:** Qwen-2.5-Instruct / Cloud.ru Evolution
 *   **Memory (RAG):** ChromaDB (Vector Store), Qwen-Embedding, Qwen-Reranker
-*   **External APIs:** Google Search, Jina.ai, DPD SOAP API, Gmail (SMTP/IMAP), Yandex Disk API.
+*   **External APIs:** Google Search, Jina.ai, DPD SOAP API, Gmail (SMTP/IMAP), Yandex Disk API
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'fontFamily': 'Arial', 'fontSize': '14px', 'primaryTextColor': '#333' }}}%%
